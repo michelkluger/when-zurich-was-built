@@ -65,7 +65,10 @@ const tok = k => getComputedStyle(document.documentElement).getPropertyValue(k).
 const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 const T0 = 1850, T1 = 2026, FLOOR_M = 3.2, EXAG = 5; // at city scale real heights are sub-pixel, so the 3D part exaggerates them (said in the caption)
 // storyboard in seconds: intro, growth 1850->2026, hold, tilt to 3D, outro fade, outro hold
-const INTRO = 2, GROW = 15, HOLD = 1.5, TILT = 5, OUT_IN = 1, OUT_HOLD = 2.5;
+// Each era gets the same screen time (SEG s) so its caption can be read; the year counter still shows the true year.
+const SEGS = [1850, 1919, 1946, 1961, 2001, 2026], SEG = 3.5;
+const INTRO = 3, GROW = SEG * (SEGS.length - 1), HOLD = 1.5, TILT = 5, OUT_IN = 1, OUT_HOLD = 2.5;
+const yearAt = s => { const g = Math.max(0, s - INTRO), j = Math.min(SEGS.length - 2, Math.floor(g / SEG)); return Math.min(T1, SEGS[j] + (g - j * SEG) / SEG * (SEGS[j + 1] - SEGS[j])); };
 window.__duration = INTRO + GROW + HOLD + TILT + OUT_IN + OUT_HOLD;
 const ERA = [1849, 1918, 1945, 1960, 1980, 2000, 2010, 9999], eraOf = y => ERA.findIndex(e => y <= e);
 const PALCSS = ERA.map((_, i) => tok(`--e${i}`)), PAL = PALCSS.map(rgb);
@@ -106,7 +109,7 @@ function strip(t) {
 // Draw the frame for second s of the storyboard; resolves once it is on screen.
 window.__seek = async s => {
   const sGrowEnd = INTRO + GROW, sTilt = sGrowEnd + HOLD, sOut = sTilt + TILT;
-  const t = s < INTRO ? T0 : s < sGrowEnd ? T0 + (s - INTRO) / GROW * (T1 - T0) : T1;
+  const t = s < INTRO ? T0 : s < sGrowEnd ? yearAt(s) : T1;
   const p = ease((s - sTilt) / TILT), o = ease((s - sOut) / OUT_IN), drift = s > sTilt ? -1.6 * (s - sTilt) : 0;
   const soft = s >= INTRO && s < sGrowEnd ? 1.5 : 0;
   deckgl.setProps({ viewState: { ...V0, longitude: V0.longitude + (V1.longitude - V0.longitude) * p, latitude: V0.latitude + (V1.latitude - V0.latitude) * p,
@@ -149,12 +152,13 @@ window.__seek = async s => {
   const fl1 = k => (eraF[k] / eraN[k]).toFixed(1), rate = (a, b) => { let n = 0; for (let y = a; y <= b; y++) n += perYear[y - T0]; return n / (b - a + 1); };
   // Every number below comes from the data; the place names were checked against it offline (share of buildings near each place).
   CAPS = [
-    { upTo: 1849, key: 'Before 1850', text: `The old town and former village centres: ${fmt(eraN[0])} buildings older than 1850 still stand.` },
-    { upTo: 1918, key: '1850–1918', text: `The boom years: ${fmt(eraN[1])} buildings, mostly dense city blocks. At ${fl1(1)} floors on average, still the tallest era.` },
-    { upTo: 1945, key: '1919–1945', text: `${fmt(eraN[2])} buildings, more than any other era. The busiest single year on the map is ${peakY}: ${fmt(peakN)} buildings still standing.` },
-    { upTo: 1960, key: '1946–1960', text: `Post-war estates on the edges, like Schwamendingen and Affoltern: over ${Math.floor(rate(1946, 1960) / 100) * 100} new buildings a year.` },
-    { upTo: 2000, key: '1961–2000', text: `Growth slows to under ${Math.ceil(rate(1981, 2000) / 100) * 100} new buildings a year by the 1980s and 1990s.` },
-    { upTo: 9999, key: '2001–2026', text: `Since 2011, new buildings average ${fl1(7)} floors, the most since the 1850–1918 blocks.` },
+    // what happened (from the data) + why (history, sourced in the README)
+    { upTo: 1849, key: 'Before 1850', text: `A walled town until the 1830s, when its fortifications came down. ${fmt(eraN[0])} buildings older than 1850 still stand.` },
+    { upTo: 1918, key: '1850–1918', text: `The railway arrives in 1847 and industry follows. Dense blocks, ${fl1(1)} floors on average, fill the workers’ suburbs.` },
+    { upTo: 1945, key: '1919–1945', text: `A housing shortage after World War I: cooperatives build fast. The busiest year on the map is ${peakY}.` },
+    { upTo: 1960, key: '1946–1960', text: `Eight villages joined the city in 1934. After the war, estates like Schwamendingen fill them: over ${Math.floor(rate(1946, 1960) / 100) * 100} buildings a year.` },
+    { upTo: 2000, key: '1961–2000', text: `Cars and rising incomes pull people out to the suburbs. The population peaks in 1962; building slows to under ${Math.ceil(rate(1981, 2000) / 100) * 100} a year.` },
+    { upTo: 9999, key: '2001–2026', text: `Old factory land is rebuilt, and since 2014 federal law says grow inward. Since 2011, new buildings average ${fl1(7)} floors.` },
   ].map(c => ({ ...c, color: PALCSS[eraOf(Math.max(T0 - 1, c.upTo === 9999 ? 2026 : c.upTo))] }));
   TILT_CAP = { key: 'Height = floors, exaggerated 5×', color: PALCSS[7], text: `Since 2001, ${tall} buildings with 12 or more floors have gone up, about half of them in Altstetten, Zürich-West, Oerlikon and Seebach.` };
   $('#outroText').textContent = `${fmt(nB)} buildings, each coloured by the year it was finished. Explore them all:`;

@@ -146,13 +146,13 @@ const PALCSS = ERA.map((_, i) => tok(`--e${i}`)), PAL = PALCSS.map(rgb);
 const C = { water: rgb(tok('--water')), road: rgb(tok('--road')), roadMajor: rgb(tok('--road-major')), rail: rgb(tok('--rail')),
   boundary: rgb(tok('--boundary')), dim: rgb(tok('--dim')), ink: rgb(tok('--ink')), bg: rgb(tok('--bg')) };
 const KIND = ['Residential', 'Residential with other use', 'Partly residential', 'Non-residential', 'Special structure', 'Temporary home'];
-// The tour's figures were computed from this data (share of buildings within 500 m of each place).
+// The tour's figures were computed from this data (share of buildings within 500 m of each place); the history is sourced in the README.
 const TOUR = [
-  { place: 'Altstadt', zoom: 15.7, height: false, eras: [0], title: 'The old town', text: 'Around the Limmat, six in ten buildings are older than 1850.' },
-  { place: 'Langstrasse', zoom: 15.4, height: true, eras: [1], title: 'Blocks of the boom years', text: 'Two in three buildings around Langstrasse date from 1850–1918: closed city blocks averaging six floors.' },
-  { place: 'Schwamendingen', zoom: 14.7, height: false, eras: [3], title: 'Post-war estates', text: 'About four in ten buildings here went up between 1946 and 1960, lower than the inner city at around four floors. Affoltern, in the northwest, grew the same way.' },
-  { place: 'Escher Wyss', zoom: 15.3, height: true, eras: [6, 7], title: 'From factories to towers', text: 'In Zürich-West, almost four in ten buildings are from after 2000, averaging between six and seven floors.' },
-  { place: 'Hirzenbach', zoom: 15.4, height: true, eras: [6, 7], title: 'Building among the estates', text: 'Around Hirzenbach, one building in six is from after 2000, and the new ones are taller: 5.5 floors on average, against 4.5 for the area overall.' },
+  { place: 'Altstadt', zoom: 15.7, height: false, eras: [0], title: 'The old town', text: 'Around the Limmat, six in ten buildings are older than 1850. The city stayed inside its walls until it tore down its fortifications in the 1830s.' },
+  { place: 'Langstrasse', zoom: 15.4, height: true, eras: [1], title: 'Blocks of the boom years', text: 'Two in three buildings around Langstrasse date from 1850–1918: closed city blocks averaging six floors. The railway arrived in 1847, industry followed, and in 1893 Zürich absorbed eleven fast-growing workers’ suburbs, Aussersihl among them.' },
+  { place: 'Schwamendingen', zoom: 14.7, height: false, eras: [3], title: 'Post-war estates', text: 'About four in ten buildings here went up between 1946 and 1960, lower than the inner city at around four floors. Schwamendingen joined the city in 1934 and was planned in 1948 as a garden city for workers at the Oerlikon factories. Affoltern, in the northwest, grew the same way.' },
+  { place: 'Escher Wyss', zoom: 15.3, height: true, eras: [6, 7], title: 'From factories to towers', text: 'In Zürich-West, almost four in ten buildings are from after 2000, averaging between six and seven floors. The old industrial area was replanned from 1998 as its factories gave way to offices and flats.' },
+  { place: 'Hirzenbach', zoom: 15.4, height: true, eras: [6, 7], title: 'Building among the estates', text: 'Around Hirzenbach, one building in six is from after 2000, and the new ones are taller: 5.5 floors on average, against 4.5 for the area overall. Since 2014, federal planning law requires towns to grow inward, and the city plans to densify its post-war estates.' },
 ];
 const status = m => { $('#status').textContent = m; $('#status').hidden = !m; };
 
