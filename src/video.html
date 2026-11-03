@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=540">
+<title>When Zürich Was Built · video card</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://unpkg.com/deck.gl@8.9.36/dist.min.js"></script>
+<style>
+/* Layout: one 540×675 card (exported at 2x = 1080×1350, LinkedIn 4:5). Header with title and year, map with era caption, era-coloured timeline, sources. An outro card fades in at the end. */
+:root {
+  --bg: #0b0d12; --ink: #eef0f4; --ink-2: #a9b0bd; --muted: #6f7684;
+  --water: #11223a; --road: #1d232d; --road-major: #2b3341; --rail: #262c37; --boundary: #3b4352;
+  --e0: #493893; --e1: #7140ad; --e2: #a248ac; --e3: #c9559b; --e4: #e96b7d; --e5: #f78d5c; --e6: #fcb547; --e7: #fce36a;
+  --font-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "Archivo", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); }
+.card { width: 540px; height: 675px; position: relative; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; background: var(--bg); }
+header { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; padding: 20px 22px 8px; }
+.eyebrow { font: 500 9.5px/1.4 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 5px; }
+h1 { font-family: var(--font-display); font-stretch: 76%; font-weight: 780; font-size: 32px; line-height: .95; margin: 0; }
+.yr { text-align: right; }
+.yr b { display: block; font-family: var(--font-display); font-stretch: 62%; font-weight: 800; font-size: 62px; line-height: .8; font-variant-numeric: tabular-nums; }
+.yr span { font: 10px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.map { position: relative; }
+#deck { position: absolute; inset: 0; }
+.cap { position: absolute; left: 14px; right: 14px; bottom: 10px; padding: 9px 13px 11px; border-left: 3px solid var(--e0); border-radius: 0 6px 6px 0;
+  background: rgba(11, 13, 18, .94); display: grid; gap: 3px; }
+.cap .k { font: 500 10px/1.3 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+.cap .v { font-size: 15.5px; font-weight: 600; line-height: 1.3; text-wrap: balance; }
+.strip { padding: 8px 22px 0; height: 50px; }
+footer { padding: 4px 22px 12px; font: 9.5px/1.5 var(--font-mono); color: var(--muted); }
+.outro { position: absolute; inset: 0; display: grid; align-content: center; justify-items: center; gap: 14px; text-align: center; padding: 40px;
+  background: rgba(11, 13, 18, .86); opacity: 0; }
+.outro h2 { font-family: var(--font-display); font-stretch: 76%; font-weight: 780; font-size: 50px; line-height: .95; margin: 0; }
+.outro p { margin: 0; color: var(--ink-2); font-size: 16px; line-height: 1.4; max-width: 30ch; }
+.outro .url { font: 500 13.5px var(--font-mono); color: var(--e6); }
+.outro .src { font: 10px var(--font-mono); color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="card">
+  <header>
+    <div><p class="eyebrow">City of Zürich · buildings standing today</p><h1>When Zürich<br>was built</h1></div>
+    <div class="yr"><b id="yr">1850</b><span id="cnt">–</span></div>
+  </header>
+  <div class="map"><div id="deck"></div><div class="cap" id="cap"><span class="k" id="capK"></span><span class="v" id="capV"></span></div></div>
+  <div class="strip" id="strip"></div>
+  <footer>Data: GWR building register (BFS) · outlines © OpenStreetMap contributors<br>Interactive map: michelkluger.github.io/when-zurich-was-built</footer>
+  <div class="outro" id="outro">
+    <h2>When Zürich<br>was built</h2>
+    <p id="outroText"></p>
+    <span class="url">michelkluger.github.io/when-zurich-was-built</span>
+    <span class="src">GWR (BFS) · © OpenStreetMap contributors</span>
+  </div>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const fmt = v => Math.round(v).toLocaleString('de-CH');
+const tok = k => getComputedStyle(document.documentElement).getPropertyValue(k).trim();
+const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const T0 = 1850, T1 = 2026, FLOOR_M = 3.2, EXAG = 5; // at city scale real heights are sub-pixel, so the 3D part exaggerates them (said in the caption)
+// storyboard in seconds: intro, growth 1850->2026, hold, tilt to 3D, outro fade, outro hold
+const INTRO = 2, GROW = 15, HOLD = 1.5, TILT = 5, OUT_IN = 1, OUT_HOLD = 2.5;
+window.__duration = INTRO + GROW + HOLD + TILT + OUT_IN + OUT_HOLD;
+const ERA = [1849, 1918, 1945, 1960, 1980, 2000, 2010, 9999], eraOf = y => ERA.findIndex(e => y <= e);
+const PALCSS = ERA.map((_, i) => tok(`--e${i}`)), PAL = PALCSS.map(rgb);
+const C = { water: rgb(tok('--water')), road: rgb(tok('--road')), roadMajor: rgb(tok('--road-major')), rail: rgb(tok('--rail')), boundary: rgb(tok('--boundary')), ink: rgb(tok('--ink')), bg: rgb(tok('--bg')) };
+const ease = x => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
+function lv95ToWgs(E, N) {
+  const y = (E - 2600000) / 1e6, x = (N - 1200000) / 1e6;
+  return [(2.6779094 + 4.728982 * y + 0.791484 * y * x + 0.1306 * y * x * x - 0.0436 * y * y * y) * 100 / 36,
+    (16.9023892 + 3.238272 * x - 0.270978 * y * y - 0.002528 * x * x - 0.0447 * y * y * x - 0.014 * x * x * x) * 100 / 36];
+}
+const insideRing = (x, y, r) => { let o = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const [xi, yi] = r[i], [xj, yj] = r[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) o = !o; } return o; };
+
+let B = [], CTX, places, ORIGIN, V0, V1, deckgl, base, FILTER, perYear, cum, CAPS, TILT_CAP;
+const M = () => ({ coordinateSystem: deck.COORDINATE_SYSTEM.METER_OFFSETS, coordinateOrigin: ORIGIN });
+
+function layers(t, soft, elev) {
+  return [...base,
+    new deck.SolidPolygonLayer({ ...M(), id: 'bld', data: B, getPolygon: d => d.p, positionFormat: 'XY',
+      extruded: elev > 0.001, elevationScale: EXAG * elev, getElevation: d => Math.max(1, d.f) * FLOOR_M, getFillColor: d => PAL[d.c],
+      material: { ambient: 0.6, diffuse: 0.5, shininess: 16, specularColor: [40, 40, 44] },
+      extensions: [FILTER], getFilterValue: d => d.y, filterRange: [0, t], filterSoftRange: [0, t - soft] }),
+    new deck.TextLayer({ ...M(), id: 'labels', data: places, getPosition: d => [d.at[0], d.at[1], 0], getText: d => d.name,
+      getSize: 10.5, getColor: [...C.ink, 210], fontFamily: 'Archivo, system-ui, sans-serif', fontWeight: 600, characterSet: 'auto',
+      fontSettings: { sdf: true, fontSize: 64, buffer: 8 }, outlineWidth: 5, outlineColor: [...C.bg, 230], parameters: { depthTest: false } })];
+}
+function strip(t) {
+  const el = $('#strip'), W = el.clientWidth - 44, H = 30, n = T1 - T0 + 1, bw = W / n, y = Math.floor(t);
+  let m = 1; for (const c of perYear) m = Math.max(m, c);
+  let s = `<svg width="${W}" height="42" style="overflow:visible">`;
+  for (let i = 0; i < n; i++) {
+    const yr = T0 + i, h = perYear[i] / m * H; if (!h) continue;
+    s += `<rect x="${i * bw}" y="${H - h}" width="${Math.max(0.6, bw - 0.5)}" height="${h}" fill="${PALCSS[eraOf(yr)]}" opacity="${yr <= y ? 1 : 0.2}"/>`;
+  }
+  for (const yr of [1850, 1900, 1950, 2000]) s += `<text x="${(yr - T0 + 0.5) * bw}" y="41" fill="${tok('--muted')}" font-size="9.5" font-family="IBM Plex Mono, monospace" text-anchor="middle">${yr}</text>`;
+  const x = Math.min(W, (t - T0 + 1) * bw);
+  el.innerHTML = s + `<line x1="${x}" x2="${x}" y1="-3" y2="${H + 2}" stroke="${tok('--ink')}" stroke-width="1.5"/></svg>`;
+}
+// Draw the frame for second s of the storyboard; resolves once it is on screen.
+window.__seek = async s => {
+  const sGrowEnd = INTRO + GROW, sTilt = sGrowEnd + HOLD, sOut = sTilt + TILT;
+  const t = s < INTRO ? T0 : s < sGrowEnd ? T0 + (s - INTRO) / GROW * (T1 - T0) : T1;
+  const p = ease((s - sTilt) / TILT), o = ease((s - sOut) / OUT_IN), drift = s > sTilt ? -1.6 * (s - sTilt) : 0;
+  const soft = s >= INTRO && s < sGrowEnd ? 1.5 : 0;
+  deckgl.setProps({ viewState: { ...V0, longitude: V0.longitude + (V1.longitude - V0.longitude) * p, latitude: V0.latitude + (V1.latitude - V0.latitude) * p,
+    zoom: V0.zoom + 1.1 * p, pitch: 56 * p, bearing: -18 * p + drift }, layers: layers(t, soft, p) });
+  deckgl.redraw(true);
+  const y = Math.floor(t), cap = s >= sTilt ? TILT_CAP : s < INTRO ? CAPS[0] : CAPS.slice(1).find(c => y <= c.upTo);
+  $('#yr').textContent = y; $('#cnt').textContent = `${fmt(cum[y - T0])} buildings`;
+  $('#capK').textContent = cap.key; $('#capV').textContent = cap.text; $('#cap').style.borderLeftColor = cap.color;
+  $('#outro').style.opacity = o;
+  strip(t);
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+};
+
+(async () => {
+  const [rb, rc] = await Promise.all([fetch('../docs/city.txt'), fetch('../docs/city_ctx.json')]);
+  const bin = atob((await rb.text()).trim()), u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  CTX = await rc.json();
+  const buf = u8.buffer, [nB, nV, E0, N0] = new Uint32Array(buf, 0, 4);
+  let o = 16; const rs = new Uint32Array(buf, o, nB + 1); o += 4 * (nB + 1);
+  const xy = new Uint16Array(buf, o, 2 * nV); o += 4 * nV;
+  const yr = new Uint16Array(buf, o, nB); o += 2 * nB;
+  const fl = new Uint8Array(buf, o, nB);
+  ORIGIN = [...lv95ToWgs(E0, N0), 0];
+  perYear = new Uint32Array(T1 - T0 + 1);
+  const eraN = new Array(8).fill(0), eraF = new Array(8).fill(0);
+  let older = 0, tall = 0, bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+  for (let i = 0; i < nB; i++) {
+    const a = rs[i], b = rs[i + 1], p = new Float32Array(2 * (b - a));
+    for (let v = a, k = 0; v < b; v++, k += 2) { p[k] = xy[2 * v] / 2; p[k + 1] = xy[2 * v + 1] / 2; }
+    const y = yr[i], c = eraOf(y);
+    B.push({ p, y, c, f: fl[i] });
+    eraN[c]++; eraF[c] += fl[i];
+    if (y < T0) older++; else if (y <= T1) perYear[y - T0]++;
+    if (y >= 2001 && fl[i] >= 12) tall++;
+    bx0 = Math.min(bx0, p[0]); bx1 = Math.max(bx1, p[0]); by0 = Math.min(by0, p[1]); by1 = Math.max(by1, p[1]);
+  }
+  cum = new Uint32Array(T1 - T0 + 1); for (let i = 0, s = older; i < cum.length; i++) cum[i] = s += perYear[i];
+  const peakN = Math.max(...perYear), peakY = T0 + perYear.indexOf(peakN);
+  const fl1 = k => (eraF[k] / eraN[k]).toFixed(1), rate = (a, b) => { let n = 0; for (let y = a; y <= b; y++) n += perYear[y - T0]; return n / (b - a + 1); };
+  // Every number below comes from the data; the place names were checked against it offline (share of buildings near each place).
+  CAPS = [
+    { upTo: 1849, key: 'Before 1850', text: `The old town and former village centres: ${fmt(eraN[0])} buildings older than 1850 still stand.` },
+    { upTo: 1918, key: '1850–1918', text: `The boom years: ${fmt(eraN[1])} buildings, mostly dense city blocks. At ${fl1(1)} floors on average, still the tallest era.` },
+    { upTo: 1945, key: '1919–1945', text: `${fmt(eraN[2])} buildings, more than any other era. The busiest single year on the map is ${peakY}: ${fmt(peakN)} buildings still standing.` },
+    { upTo: 1960, key: '1946–1960', text: `Post-war estates on the edges, like Schwamendingen and Affoltern: over ${Math.floor(rate(1946, 1960) / 100) * 100} new buildings a year.` },
+    { upTo: 2000, key: '1961–2000', text: `Growth slows to under ${Math.ceil(rate(1981, 2000) / 100) * 100} new buildings a year by the 1980s and 1990s.` },
+    { upTo: 9999, key: '2001–2026', text: `Since 2011, new buildings average ${fl1(7)} floors, the most since the 1850–1918 blocks.` },
+  ].map(c => ({ ...c, color: PALCSS[eraOf(Math.max(T0 - 1, c.upTo === 9999 ? 2026 : c.upTo))] }));
+  TILT_CAP = { key: 'Height = floors, exaggerated 5×', color: PALCSS[7], text: `Since 2001, ${tall} buildings with 12 or more floors have gone up, about half of them in Altstetten, Zürich-West, Oerlikon and Seebach.` };
+  $('#outroText').textContent = `${fmt(nB)} buildings, each coloured by the year it was finished. Explore them all:`;
+  const ring = CTX.boundary.sort((a, b) => b.length - a.length)[0];
+  places = CTX.places.filter(p => p.kind === 'suburb' && (!ring || insideRing(p.at[0], p.at[1], ring)));
+  FILTER = new deck.DataFilterExtension({ filterSize: 1 });
+  base = [
+    new deck.SolidPolygonLayer({ ...M(), id: 'water', data: CTX.water, getPolygon: d => d, getFillColor: C.water }),
+    new deck.PathLayer({ ...M(), id: 'rivers', data: CTX.rivers, getPath: d => d, getWidth: 10, widthUnits: 'meters', getColor: C.water }),
+    new deck.PathLayer({ ...M(), id: 'roads', data: CTX.roads, getPath: d => d.p, getWidth: d => [18, 12, 9, 6][d.r], widthUnits: 'meters', widthMinPixels: 0.6, getColor: d => d.r < 2 ? C.roadMajor : C.road }),
+    new deck.PathLayer({ ...M(), id: 'rail', data: CTX.rail, getPath: d => d, getWidth: 3, widthUnits: 'meters', widthMinPixels: 0.5, getColor: C.rail }),
+    new deck.PathLayer({ ...M(), id: 'boundary', data: CTX.boundary, getPath: d => d, getWidth: 1.2, widthUnits: 'pixels', getColor: C.boundary }),
+  ];
+  const el = $('#deck'), [lon, lat] = lv95ToWgs(E0 + (bx0 + bx1) / 2, N0 + (by0 + by1) / 2 - 300);
+  const mpp = Math.max((bx1 - bx0) / el.clientWidth, (by1 - by0) / el.clientHeight);
+  V0 = { longitude: lon, latitude: lat, zoom: Math.log2(78271.52 * Math.cos(lat * Math.PI / 180) / mpp) - 0.02, pitch: 0, bearing: 0 };
+  const iq = CTX.places.find(p => p.name === 'Industriequartier'), [lon1, lat1] = iq ? lv95ToWgs(E0 + iq.at[0], N0 + iq.at[1] - 400) : [lon, lat];
+  V1 = { longitude: lon1, latitude: lat1 }; // the 3D part closes in on Zürich-West
+  await Promise.race([document.fonts.load('600 16px Archivo'), new Promise(r => setTimeout(r, 3000))]).catch(() => {});
+  deckgl = new deck.Deck({ parent: el, viewState: V0, controller: false, layers: [], glOptions: { preserveDrawingBuffer: true } });
+  await window.__seek(0);
+  await new Promise(r => setTimeout(r, 1500)); // let the label font atlas build
+  await window.__seek(0);
+  window.__ready = true;
+})();
+</script>
+</body>
+</html>

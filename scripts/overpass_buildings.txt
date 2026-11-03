@@ -1,0 +1,4 @@
+[out:json][timeout:240];
+area["boundary"="administrative"]["admin_level"="8"]["name"="Zürich"]->.a;
+way["building"](area.a);
+out geom;

@@ -1,0 +1,11 @@
+[out:json][timeout:240];
+(
+ way["natural"="water"](47.31,8.43,47.44,8.63);
+ relation["natural"="water"](47.31,8.43,47.44,8.63);
+ way["waterway"="river"](47.31,8.43,47.44,8.63);
+ way["highway"~"^(motorway|trunk|primary|secondary|tertiary)$"](47.31,8.43,47.44,8.63);
+ way["railway"="rail"](47.31,8.43,47.44,8.63);
+ node["place"~"^(suburb|quarter|neighbourhood)$"](47.31,8.43,47.44,8.63);
+ relation["boundary"="administrative"]["admin_level"="8"]["name"="Zürich"];
+);
+out geom;
